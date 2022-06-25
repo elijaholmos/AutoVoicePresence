@@ -2,8 +2,8 @@
  * @name AutoVoicePresence
  * @version 1.0.0
  * @authorLink https://github.com/elijaholmos
- * @source https://raw.githubusercontent.com/elijaholmos/AutoVoicePresence/master/AutoVoicePresence.plugin.js
- * @updateUrl https://raw.githubusercontent.com/elijaholmos/AutoVoicePresence/master/AutoVoicePresence.plugin.js
+ * @source https://raw.githubusercontent.com/elijaholmos/AutoVoicePresence/master/dist/AutoVoicePresence/AutoVoicePresence.plugin.js
+ * @updateUrl https://raw.githubusercontent.com/elijaholmos/AutoVoicePresence/master/dist/AutoVoicePresence/AutoVoicePresence.plugin.js
  */
 /*@cc_on
 @if (@_jscript)
@@ -31,7 +31,7 @@
 
 
 module.exports = (() => {
-    const config = {info:{name:"AutoVoicePresence",authors:[{name:"Ollog10",discord_id:"139120967208271872",github_username:"elijaholmos"}],version:"1.0.0",description:"Automatically updates your rich presence when your voice activity changes",github:"https://github.com/elijaholmos/AutoVoicePresence",github_raw:"https://raw.githubusercontent.com/elijaholmos/AutoVoicePresence/master/AutoVoicePresence.plugin.js"},main:"index.js"};
+    const config = {info:{name:"AutoVoicePresence",authors:[{name:"Ollog10",discord_id:"139120967208271872",github_username:"elijaholmos"}],version:"1.0.0",description:"Automatically updates your rich presence when your voice activity changes",github:"https://github.com/elijaholmos/AutoVoicePresence",github_raw:"https://raw.githubusercontent.com/elijaholmos/AutoVoicePresence/master/dist/AutoVoicePresence/AutoVoicePresence.plugin.js"},main:"index.js"};
 
     return !global.ZeresPluginLibrary ? class {
         constructor() {this._config = config;}
@@ -80,21 +80,25 @@ module.exports = (() => {
     const { SET_ACTIVITY } = WebpackModules.getByProps('SET_ACTIVITY');
     const VoiceStateStore = WebpackModules.getByProps('getVoiceStatesForChannel');
 
-    DiscordModules.Dispatcher.__proto__.customUnsubscribe = function (event, method) {
-        if(!method) throw 'You need a method name to use customUnsubscribe';
-
-        const set = this._subscriptions[event];
-        if(!set) return;
-
-        const parseMethodName = (n) => {
-            n = n.trim();
-            n.startsWith('function ') && (n = n.substring('function '.length).trim());
-            n.startsWith('bound ') && (n = n.substring('bound '.length).trim());
-            return n;
-        };
-        
-        set.forEach((item) => parseMethodName(item.name).startsWith(method.name) && set.delete(item));
-        set.size === 0 && delete this._subscriptions[event];
+    DiscordModules.Dispatcher.__proto__._subscriptionMap = new Map();
+    DiscordModules.Dispatcher.__proto__.$subscribe = function (event, method) {
+        const id = Date.now();
+        this._subscriptionMap.set(id, [event, method]);
+        this.subscribe(event, method);
+        return id;
+    };
+    DiscordModules.Dispatcher.__proto__.$unsubscribe = function (id) {
+        if(!id || !this._subscriptionMap.has(id)) return false;
+        const [event, method] = this._subscriptionMap.get(id);
+        this.unsubscribe(event, method);
+        return this._subscriptionMap.delete(id);
+    };
+    DiscordModules.Dispatcher.__proto__.$unsubscribeAll = function (event) {
+        this._subscriptionMap.forEach(([e, m], id) => {
+            if(e !== event) return;
+            this.unsubscribe(e, m);
+            this._subscriptionMap.delete(id);
+        });
     };
 
     const AssetResolver = WebpackModules.getByProps('getAssetIds');
@@ -167,56 +171,74 @@ module.exports = (() => {
     }
 
     return class AutoVoicePresence extends Plugin {
+        subscriptions = new Map();
+        
         onStart() {
             //do some check if user is currently in VC when starting plugin
             RPC.clearActivity();
-            //DiscordModules.Dispatcher.subscribe('VOICE_STATE_UPDATES', this.originalVoiceStateUpdateHandler);
-            DiscordModules.Dispatcher.subscribe('VOICE_CHANNEL_SELECT', this.voiceChannelSelectHandler.bind(this));
+            DiscordModules.Dispatcher.$subscribe('VOICE_CHANNEL_SELECT', this.voiceChannelSelectHandler.bind(this));
         }
 
         onStop() {
             RPC.clearActivity();
-            DiscordModules.Dispatcher.customUnsubscribe('VOICE_CHANNEL_SELECT', this.voiceChannelSelectHandler);
+            DiscordModules.Dispatcher.$unsubscribeAll('VOICE_CHANNEL_SELECT');
         }
 
-        voiceChannelSelectHandler(e) {
+        voiceChannelSelectHandler({currentVoiceChannelId=null} = {}) {
             Logger.info('Voice Channel Selected');
-            Logger.info(e);
             const channel = DiscordModules.ChannelStore.getChannel(DiscordModules.SelectedChannelStore.getVoiceChannelId());
             Logger.info(channel);
+            //user left voice channel
             if(!channel) {
                 console.log('unsubscribing', this.detectUserCountChange());
-                DiscordModules.Dispatcher.customUnsubscribe('VOICE_STATE_UPDATES', this.detectUserCountChange()); //remove event listener
+                DiscordModules.Dispatcher.$unsubscribe(this.subscriptions.get('detectUserCountChange')); //remove event listener
                 RPC.clearActivity();   //current user is not in voice channel
                 return;
             }
-
-            //const self=this;
-            Logger.info('self1')
-            console.log(this)
-            console.log(this.detectUserCountChange())
+            
+            currentVoiceChannelId ??= channel.id;
+            //user switched voice channels
+            if(currentVoiceChannelId !== channel.id) 
+                DiscordModules.Dispatcher.$unsubscribe(this.subscriptions.get('detectUserCountChange')); //remove event listener
+               
             let activity;
             switch(channel?.type) {
                 case DiscordModules.DiscordConstants.ChannelTypes.DM:
+                    const user = DiscordModules.UserStore.getUser(channel.recipients[0]);
+                    RPC.setActivity({
+                        timestamps: { start: Date.now() },
+                        details: `with ${user.username}`,
+                        //state: `${Object.keys(VoiceStateStore.getVoiceStatesForChannel(channel.id)).length} total users`,
+                        assets: {
+                            large_image: user.getAvatarURL(null, null, true),
+                            large_text: `${user.username}#${user.discriminator}`,
+                        },
+                    });
+                    break;
                 case DiscordModules.DiscordConstants.ChannelTypes.GROUP_DM:
-                    
+                    //I'm thinking do something separate with group dm images and "playing..." name
                     break;
                 case DiscordModules.DiscordConstants.ChannelTypes.GUILD_VOICE:
                     const guild = DiscordModules.GuildStore.getGuild(channel.guild_id);
                     Logger.info(guild);
-                    Logger.info('this');
-                    Logger.info(this);
                     RPC.setActivity({
                         timestamps: { start: Date.now() },
                         details: channel.name,
                         state: `${Object.keys(VoiceStateStore.getVoiceStatesForChannel(channel.id)).length} total users`,
                         assets: {
-                            large_image: `${guild.getIconURL(null, true)}`,
+                            large_image: guild.getIconURL(null, true),
                             large_text: guild.name,
                         },
                     });
                     console.log('subscribing', this.detectUserCountChange(channel));
-                    DiscordModules.Dispatcher.subscribe('VOICE_STATE_UPDATES', this.detectUserCountChange(channel)); //create event listener
+                    //create subscription
+                    this.subscriptions.set(
+						'detectUserCountChange',
+						DiscordModules.Dispatcher.$subscribe(
+							'VOICE_STATE_UPDATES',
+							this.detectUserCountChange(channel)
+						)
+					);
                     break;
                 case DiscordModules.DiscordConstants.ChannelTypes.GUILD_STAGE_VOICE:
                     
@@ -247,31 +269,6 @@ module.exports = (() => {
                 //!= to coerce string/number if necessary
                 if(voice_state.channelId != target_channel.id) return;
             };
-        }
-
-        originalVoiceStateUpdateHandler(e) {
-            const [voice_state] = e.voiceStates;
-            //!= to coerce string/number if necessary
-            if(voice_state.userId != DiscordModules.UserInfoStore.getId()) return;
-
-            const channel = DiscordModules.ChannelStore.getChannel(VoiceStateStore.getCurrentClientVoiceChannelId());
-            if(!channel) RPC.clearActivity();   //current user is not in voice channel
-
-            switch(channel?.type) {
-                case DiscordModules.DiscordConstants.ChannelTypes.DM:
-                case DiscordModules.DiscordConstants.ChannelTypes.GROUP_DM:
-                    res = constants.IN_A_CALL;
-                    break;
-                case DiscordModules.DiscordConstants.ChannelTypes.GUILD_VOICE:
-                    res = constants.IN_A_VOICE_CHANNEL;
-                    break;
-                case DiscordModules.DiscordConstants.ChannelTypes.GUILD_STAGE_VOICE:
-                    res = constants.IN_A_STAGE;
-                    break;
-                default:
-                    res = constants.IN_A_CALL;
-                    break;
-            }
         }
     };
 };

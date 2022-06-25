@@ -11,7 +11,7 @@
 		"version": "1.0.0",
 		"description": "Automatically updates your rich presence when your voice activity changes",
 		"github": "https://github.com/elijaholmos/AutoVoicePresence",
-		"github_raw": "https://raw.githubusercontent.com/elijaholmos/AutoVoicePresence/master/AutoVoicePresence.plugin.js"
+		"github_raw": "https://raw.githubusercontent.com/elijaholmos/AutoVoicePresence/master/dist/AutoVoicePresence/AutoVoicePresence.plugin.js"
 	},
 	"main": "index.js"
 }
