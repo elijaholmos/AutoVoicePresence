@@ -114,6 +114,12 @@ module.exports = (() => {
 			)
 		);
     };
+
+    const resolveURI = function (uri) {
+        return uri.startsWith('/') 
+            ? `${location.protocol}${window.GLOBAL_ENV.ASSET_ENDPOINT}${uri}`
+            : uri;
+    };
     
     class RPC {
         static activity = {};
@@ -188,7 +194,7 @@ module.exports = (() => {
             Logger.info('Voice Channel Selected');
             const channel = DiscordModules.ChannelStore.getChannel(DiscordModules.SelectedChannelStore.getVoiceChannelId());
             Logger.info(channel);
-            //user left voice channel
+            //user voice state is inactive
             if(!channel) {
                 console.log('unsubscribing', this.detectUserCountChange());
                 DiscordModules.Dispatcher.$unsubscribe(this.subscriptions.get('detectUserCountChange')); //remove event listener
@@ -210,7 +216,7 @@ module.exports = (() => {
                         details: `with ${user.username}`,
                         //state: `${Object.keys(VoiceStateStore.getVoiceStatesForChannel(channel.id)).length} total users`,
                         assets: {
-                            large_image: user.getAvatarURL(null, null, true),
+                            large_image: resolveURI(user.getAvatarURL(null, null, true)),
                             large_text: `${user.username}#${user.discriminator}`,
                         },
                     });
