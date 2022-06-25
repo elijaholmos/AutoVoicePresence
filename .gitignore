@@ -1,3 +1,4 @@
-# Ignore everything except src/ folder
+# Ignore everything at root except certain folders
 /*/
 !src/
+!dist/
