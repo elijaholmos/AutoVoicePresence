@@ -1,0 +1,24 @@
+{
+	"name": "autovoicepresence",
+	"version": "1.0.0",
+	"private": true,
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/elijaholmos/AutoVoicePresence"
+	},
+	"scripts": {
+		"build": "node ./scripts/build.js remote"
+	},
+	"author": "Ollog10",
+	"license": "MIT",
+	"eslintIgnore": [
+		"scripts/template.js"
+	],
+	"buildConfig": {
+		"pluginsFolder": "./src",
+		"releaseFolder": "./dist/{{PLUGIN_NAME}}",
+		"copyToBD": true,
+		"addInstallScript": true,
+		"authorLink": "https://github.com/elijaholmos"
+	}
+}
