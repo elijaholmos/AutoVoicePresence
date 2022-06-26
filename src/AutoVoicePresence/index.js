@@ -6,6 +6,19 @@ module.exports = (Plugin, Library) => {
     const { SET_ACTIVITY } = WebpackModules.getByProps('SET_ACTIVITY');
     const VoiceStateStore = WebpackModules.getByProps('getVoiceStatesForChannel');
 
+    VoiceStateStore.__proto__.getVoiceUserCount = function (
+		channel_id = DiscordModules.SelectedChannelStore.getVoiceChannelId()
+	) {
+		return Object.keys(this.getVoiceStatesForChannel(channel_id)).length;
+	};
+    VoiceStateStore.__proto__.getVoiceUsers = function (
+		channel_id = DiscordModules.SelectedChannelStore.getVoiceChannelId()
+	) {
+		return Object.keys(this.getVoiceStatesForChannel(channel_id)).map(
+			DiscordModules.UserStore.getUser
+		);
+	};
+
     DiscordModules.Dispatcher.__proto__._subscriptionMap = new Map();
     DiscordModules.Dispatcher.__proto__.$subscribe = function (event, method) {
         const id = Date.now();
@@ -51,23 +64,9 @@ module.exports = (Plugin, Library) => {
         static activity = {};
         static determineVoiceType() {
             const channel = DiscordModules.ChannelStore.getChannel(DiscordModules.SelectedChannelStore.getVoiceChannelId());
-            let res;
-            switch(channel?.type) {
-                case DiscordModules.DiscordConstants.ChannelTypes.DM:
-                case DiscordModules.DiscordConstants.ChannelTypes.GROUP_DM:
-                    res = constants.IN_A_CALL;
-                    break;
-                case DiscordModules.DiscordConstants.ChannelTypes.GUILD_VOICE:
-                    res = constants.IN_A_VOICE_CHANNEL;
-                    break;
-                case DiscordModules.DiscordConstants.ChannelTypes.GUILD_STAGE_VOICE:
-                    res = constants.IN_A_STAGE;
-                    break;
-                default:
-                    res = constants.IN_A_CALL;
-                    break;
-            }
-            return res;
+            return !channel?.type
+                ? null
+                : constants[DiscordModules.DiscordConstants.ChannelTypes[channel.type]];
         }
         
         //check if arrow function is supported
@@ -140,7 +139,7 @@ module.exports = (Plugin, Library) => {
                     RPC.setActivity({
                         timestamps: { start: Date.now() },
                         details: `with ${user.username}`,
-                        //state: `${Object.keys(VoiceStateStore.getVoiceStatesForChannel(channel.id)).length} total users`,
+                        //state: `${VoiceStateStore.getVoiceUserCount()} total users`,
                         assets: {
                             large_image: resolveURI(user.getAvatarURL(null, null, true)),
                             large_text: `${user.username}#${user.discriminator}`,
@@ -148,7 +147,35 @@ module.exports = (Plugin, Library) => {
                     });
                     break;
                 case DiscordModules.DiscordConstants.ChannelTypes.GROUP_DM:
-                    //I'm thinking do something separate with group dm images and "playing..." name
+                    const { id, name, recipients, icon } = channel;
+                    RPC.setActivity({
+                        timestamps: { start: Date.now() },
+                        details: name,
+                        state: `${VoiceStateStore.getVoiceUserCount()} of ${recipients.length+1} members in call`,
+                        assets: {
+                            //default image color doesn't match and it's an incredible pain to figure out why
+                            large_image: !!icon
+                                ? `${location.protocol}//${window.GLOBAL_ENV.CDN_HOST}/channel-icons/${id}/${icon}`
+                                : resolveURI(DiscordModules.ImageResolver.getChannelIconURL(id)),
+                            large_text: 
+                                [...new Set([
+                                    ...recipients,
+                                    DiscordModules.UserStore.getCurrentUser().id,
+                                ])].map(
+                                    (uid) =>
+                                        DiscordModules.UserStore.getUser(uid).username
+                                ).join(', '),
+                        },
+                    });
+                    console.log('subscribing', this.detectUserCountChange(channel));
+                    //create subscription
+                    this.subscriptions.set(
+						'detectUserCountChange',
+						DiscordModules.Dispatcher.$subscribe(
+							'VOICE_STATE_UPDATES',
+							this.detectUserCountChange(channel)
+						)
+					);
                     break;
                 case DiscordModules.DiscordConstants.ChannelTypes.GUILD_VOICE:
                     const guild = DiscordModules.GuildStore.getGuild(channel.guild_id);
@@ -156,7 +183,7 @@ module.exports = (Plugin, Library) => {
                     RPC.setActivity({
                         timestamps: { start: Date.now() },
                         details: channel.name,
-                        state: `${Object.keys(VoiceStateStore.getVoiceStatesForChannel(channel.id)).length} total users`,
+                        state: `${VoiceStateStore.getVoiceUserCount()} total users`,
                         assets: {
                             large_image: guild.getIconURL(null, true),
                             large_text: guild.name,
@@ -183,15 +210,41 @@ module.exports = (Plugin, Library) => {
 
         detectUserCountChange(target_channel) {
             return function handleState(e) {
-                const [voice_state] = e.voiceStates;
                 //!= to coerce string/number if necessary
-                if(voice_state.guildId != target_channel.guild_id) return;
-                //voice_state.channelId can be null if a user left
-                //if(voice_state.channelId != target_channel.id) return;
+                const [voice_state] = e.voiceStates;
+                if(!voice_state) return;
 
-                RPC.updateActivity({
-                    state: `${Object.keys(VoiceStateStore.getVoiceStatesForChannel(target_channel.id)).length} total users`
-                });
+                //will both be null for GROUP_DM
+                if(voice_state.guildId != target_channel.guild_id) return;
+
+                //many non-relevant VOICE_STATE_UPDATES events pass thru... should be cleaned up in future
+                
+                let activity = {};
+                switch (target_channel?.type) {
+					//voice_state.channelId will be null if a user left channel
+					case DiscordModules.DiscordConstants.ChannelTypes.GROUP_DM:
+						activity = {
+							state: `${VoiceStateStore.getVoiceUserCount(
+								target_channel.id
+							)} of ${
+								target_channel.rawRecipients.length + 1
+							} members in call`,
+						};
+                        break;
+					case DiscordModules.DiscordConstants.ChannelTypes.GUILD_VOICE:
+						//if(voice_state.guildId != target_channel.guild_id) return;
+						activity = {
+							state: `${VoiceStateStore.getVoiceUserCount(
+								target_channel.id
+							)} total users`,
+						};
+						break;
+					default:
+						Logger.info(`default: ${target_channel?.type}`);
+						break;
+				}
+
+                RPC.updateActivity(activity);
             };
         }
 
@@ -199,6 +252,7 @@ module.exports = (Plugin, Library) => {
             return function (e) {
                 const [voice_state] = e.voiceStates;
                 //!= to coerce string/number if necessary
+                
                 if(voice_state.channelId != target_channel.id) return;
             };
         }
