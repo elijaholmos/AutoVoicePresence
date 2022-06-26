@@ -2,8 +2,8 @@
  * @name AutoVoicePresence
  * @version 1.1.0
  * @authorLink https://github.com/elijaholmos
- * @source https://raw.githubusercontent.com/elijaholmos/AutoVoicePresence/master/dist/AutoVoicePresence/AutoVoicePresence.plugin.js
- * @updateUrl https://raw.githubusercontent.com/elijaholmos/AutoVoicePresence/master/dist/AutoVoicePresence/AutoVoicePresence.plugin.js
+ * @source https://raw.githubusercontent.com/elijaholmos/BetterDiscordAddons/master/dist/AutoVoicePresence/AutoVoicePresence.plugin.js
+ * @updateUrl https://raw.githubusercontent.com/elijaholmos/BetterDiscordAddons/master/dist/AutoVoicePresence/AutoVoicePresence.plugin.js
  */
 /*@cc_on
 @if (@_jscript)
@@ -31,7 +31,7 @@
 
 
 module.exports = (() => {
-    const config = {info:{name:"AutoVoicePresence",authors:[{name:"Ollog10",discord_id:"139120967208271872",github_username:"elijaholmos"}],version:"1.1.0",description:"Automatically updates your rich presence when your voice activity changes",github:"https://github.com/elijaholmos/AutoVoicePresence",github_raw:"https://raw.githubusercontent.com/elijaholmos/AutoVoicePresence/master/dist/AutoVoicePresence/AutoVoicePresence.plugin.js"},main:"index.js",changelog:[{title:"New Features",type:"added",items:["Rich presence for calls in individual DMs","Rich presence for calls in group DMs"]}]};
+    const config = {info:{name:"AutoVoicePresence",authors:[{name:"Ollog10",discord_id:"139120967208271872",github_username:"elijaholmos"}],version:"1.1.0",description:"Automatically updates your rich presence when your voice activity changes",github_raw:"https://raw.githubusercontent.com/elijaholmos/BetterDiscordAddons/master/dist/AutoVoicePresence/AutoVoicePresence.plugin.js"},main:"index.js",changelog:[{title:"New Features",type:"added",items:["Rich presence for calls in individual DMs","Rich presence for calls in group DMs"]}]};
 
     return !global.ZeresPluginLibrary ? class {
         constructor() {this._config = config;}

@@ -4,7 +4,7 @@
 	"private": true,
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/elijaholmos/AutoVoicePresence"
+		"url": "https://github.com/elijaholmos/BetterDiscordAddons"
 	},
 	"scripts": {
 		"build": "node ./scripts/build.js remote"
@@ -19,6 +19,7 @@
 		"releaseFolder": "./dist/{{PLUGIN_NAME}}",
 		"copyToBD": true,
 		"addInstallScript": true,
-		"authorLink": "https://github.com/elijaholmos"
+		"authorLink": "https://github.com/elijaholmos",
+		"github": "https://github.com/elijaholmos/BetterDiscordAddons"
 	}
 }
