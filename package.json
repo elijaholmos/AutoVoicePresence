@@ -1,5 +1,5 @@
 {
-	"name": "autovoicepresence",
+	"name": "betterdiscordaddons",
 	"version": "1.1.0",
 	"private": true,
 	"repository": {
@@ -16,7 +16,7 @@
 	],
 	"buildConfig": {
 		"pluginsFolder": "./src",
-		"releaseFolder": "./dist/{{PLUGIN_NAME}}",
+		"releaseFolder": "./Plugins/{{PLUGIN_NAME}}",
 		"copyToBD": true,
 		"addInstallScript": true,
 		"authorLink": "https://github.com/elijaholmos",
