@@ -1,5 +1,17 @@
 module.exports = (Plugin, Library) => {
-    const { DiscordModules, WebpackModules, Logger } = Library;
+    const {
+		DiscordModules: {
+			SelectedChannelStore,
+			UserStore,
+			Dispatcher,
+			ChannelStore,
+			DiscordConstants,
+			ImageResolver,
+			GuildStore,
+		},
+		WebpackModules,
+		Logger,
+	} = Library;
     
     const constants = require('constants.js');
 
@@ -7,32 +19,32 @@ module.exports = (Plugin, Library) => {
     const VoiceStateStore = WebpackModules.getByProps('getVoiceStatesForChannel');
 
     VoiceStateStore.__proto__.getVoiceUserCount = function (
-		channel_id = DiscordModules.SelectedChannelStore.getVoiceChannelId()
+		channel_id = SelectedChannelStore.getVoiceChannelId()
 	) {
 		return Object.keys(this.getVoiceStatesForChannel(channel_id)).length;
 	};
     VoiceStateStore.__proto__.getVoiceUsers = function (
-		channel_id = DiscordModules.SelectedChannelStore.getVoiceChannelId()
+		channel_id = SelectedChannelStore.getVoiceChannelId()
 	) {
 		return Object.keys(this.getVoiceStatesForChannel(channel_id)).map(
-			DiscordModules.UserStore.getUser
+			UserStore.getUser
 		);
 	};
 
-    DiscordModules.Dispatcher.__proto__._subscriptionMap = new Map();
-    DiscordModules.Dispatcher.__proto__.$subscribe = function (event, method) {
+    Dispatcher.__proto__._subscriptionMap = new Map();
+    Dispatcher.__proto__.$subscribe = function (event, method) {
         const id = Date.now();
         this._subscriptionMap.set(id, [event, method]);
         this.subscribe(event, method);
         return id;
     };
-    DiscordModules.Dispatcher.__proto__.$unsubscribe = function (id) {
+    Dispatcher.__proto__.$unsubscribe = function (id) {
         if(!id || !this._subscriptionMap.has(id)) return false;
         const [event, method] = this._subscriptionMap.get(id);
         this.unsubscribe(event, method);
         return this._subscriptionMap.delete(id);
     };
-    DiscordModules.Dispatcher.__proto__.$unsubscribeAll = function (event) {
+    Dispatcher.__proto__.$unsubscribeAll = function (event) {
         this._subscriptionMap.forEach(([e, m], id) => {
             if(e !== event) return;
             this.unsubscribe(e, m);
@@ -63,10 +75,10 @@ module.exports = (Plugin, Library) => {
     class RPC {
         static activity = {};
         static determineVoiceType() {
-            const channel = DiscordModules.ChannelStore.getChannel(DiscordModules.SelectedChannelStore.getVoiceChannelId());
+            const channel = ChannelStore.getChannel(SelectedChannelStore.getVoiceChannelId());
             return !channel?.type
                 ? null
-                : constants[DiscordModules.DiscordConstants.ChannelTypes[channel.type]];
+                : constants[DiscordConstants.ChannelTypes[channel.type]];
         }
         
         //check if arrow function is supported
@@ -107,22 +119,21 @@ module.exports = (Plugin, Library) => {
         onStart() {
             //do some check if user is currently in VC when starting plugin
             RPC.clearActivity();
-            DiscordModules.Dispatcher.$subscribe('VOICE_CHANNEL_SELECT', this.voiceChannelSelectHandler.bind(this));
+            Dispatcher.$subscribe('VOICE_CHANNEL_SELECT', this.voiceChannelSelectHandler.bind(this));
         }
 
         onStop() {
             RPC.clearActivity();
-            DiscordModules.Dispatcher.$unsubscribeAll('VOICE_CHANNEL_SELECT');
+            Dispatcher.$unsubscribeAll('VOICE_CHANNEL_SELECT');
         }
 
         voiceChannelSelectHandler({currentVoiceChannelId=null} = {}) {
             Logger.info('Voice Channel Selected');
-            const channel = DiscordModules.ChannelStore.getChannel(DiscordModules.SelectedChannelStore.getVoiceChannelId());
+            const channel = ChannelStore.getChannel(SelectedChannelStore.getVoiceChannelId());
             Logger.info(channel);
             //user voice state is inactive
             if(!channel) {
-                console.log('unsubscribing', this.detectUserCountChange());
-                DiscordModules.Dispatcher.$unsubscribe(this.subscriptions.get('detectUserCountChange')); //remove event listener
+                Dispatcher.$unsubscribe(this.subscriptions.get('detectUserCountChange')); //remove event listener
                 RPC.clearActivity();   //current user is not in voice channel
                 return;
             }
@@ -130,13 +141,13 @@ module.exports = (Plugin, Library) => {
             currentVoiceChannelId ??= channel.id;
             //user switched voice channels
             if(currentVoiceChannelId !== channel.id) 
-                DiscordModules.Dispatcher.$unsubscribe(this.subscriptions.get('detectUserCountChange')); //remove event listener
+                Dispatcher.$unsubscribe(this.subscriptions.get('detectUserCountChange')); //remove event listener
                
-            let activity;
+            let activity = {};
             switch(channel?.type) {
-                case DiscordModules.DiscordConstants.ChannelTypes.DM:
-                    const user = DiscordModules.UserStore.getUser(channel.recipients[0]);
-                    RPC.setActivity({
+                case DiscordConstants.ChannelTypes.DM:
+                    const user = UserStore.getUser(channel.recipients[0]);
+                    activity = {
                         timestamps: { start: Date.now() },
                         details: `with ${user.username}`,
                         //state: `${VoiceStateStore.getVoiceUserCount()} total users`,
@@ -144,11 +155,11 @@ module.exports = (Plugin, Library) => {
                             large_image: resolveURI(user.getAvatarURL(null, null, true)),
                             large_text: `${user.username}#${user.discriminator}`,
                         },
-                    });
+                    };
                     break;
-                case DiscordModules.DiscordConstants.ChannelTypes.GROUP_DM:
+                case DiscordConstants.ChannelTypes.GROUP_DM:
                     const { id, name, recipients, icon } = channel;
-                    RPC.setActivity({
+                    activity = {
                         timestamps: { start: Date.now() },
                         details: name,
                         state: `${VoiceStateStore.getVoiceUserCount()} of ${recipients.length+1} members in call`,
@@ -156,31 +167,29 @@ module.exports = (Plugin, Library) => {
                             //default image color doesn't match and it's an incredible pain to figure out why
                             large_image: !!icon
                                 ? `${location.protocol}//${window.GLOBAL_ENV.CDN_HOST}/channel-icons/${id}/${icon}`
-                                : resolveURI(DiscordModules.ImageResolver.getChannelIconURL(id)),
+                                : resolveURI(ImageResolver.getChannelIconURL(id)),
                             large_text: 
                                 [...new Set([
                                     ...recipients,
-                                    DiscordModules.UserStore.getCurrentUser().id,
+                                    UserStore.getCurrentUser().id,
                                 ])].map(
                                     (uid) =>
-                                        DiscordModules.UserStore.getUser(uid).username
+                                        UserStore.getUser(uid).username
                                 ).join(', '),
                         },
-                    });
-                    console.log('subscribing', this.detectUserCountChange(channel));
+                    };
                     //create subscription
                     this.subscriptions.set(
 						'detectUserCountChange',
-						DiscordModules.Dispatcher.$subscribe(
+						Dispatcher.$subscribe(
 							'VOICE_STATE_UPDATES',
 							this.detectUserCountChange(channel)
 						)
 					);
                     break;
-                case DiscordModules.DiscordConstants.ChannelTypes.GUILD_VOICE:
-                    const guild = DiscordModules.GuildStore.getGuild(channel.guild_id);
-                    Logger.info(guild);
-                    RPC.setActivity({
+                case DiscordConstants.ChannelTypes.GUILD_VOICE:
+                    const guild = GuildStore.getGuild(channel.guild_id);
+                    activity = {
                         timestamps: { start: Date.now() },
                         details: channel.name,
                         state: `${VoiceStateStore.getVoiceUserCount()} total users`,
@@ -188,29 +197,30 @@ module.exports = (Plugin, Library) => {
                             large_image: guild.getIconURL(null, true),
                             large_text: guild.name,
                         },
-                    });
-                    console.log('subscribing', this.detectUserCountChange(channel));
+                    };
                     //create subscription
                     this.subscriptions.set(
 						'detectUserCountChange',
-						DiscordModules.Dispatcher.$subscribe(
+						Dispatcher.$subscribe(
 							'VOICE_STATE_UPDATES',
 							this.detectUserCountChange(channel)
 						)
 					);
                     break;
-                case DiscordModules.DiscordConstants.ChannelTypes.GUILD_STAGE_VOICE:
+                case DiscordConstants.ChannelTypes.GUILD_STAGE_VOICE:
                     
                     break;
                 default:
                     Logger.info(`default: ${channel?.type}`);
                     break;
             }
+            RPC.setActivity(activity);
         }
 
         detectUserCountChange(target_channel) {
             return function handleState(e) {
-                //!= to coerce string/number if necessary
+                //!= used to coerce string/number if necessary
+
                 const [voice_state] = e.voiceStates;
                 if(!voice_state) return;
 
@@ -222,7 +232,7 @@ module.exports = (Plugin, Library) => {
                 let activity = {};
                 switch (target_channel?.type) {
 					//voice_state.channelId will be null if a user left channel
-					case DiscordModules.DiscordConstants.ChannelTypes.GROUP_DM:
+					case DiscordConstants.ChannelTypes.GROUP_DM:
 						activity = {
 							state: `${VoiceStateStore.getVoiceUserCount(
 								target_channel.id
@@ -231,7 +241,7 @@ module.exports = (Plugin, Library) => {
 							} members in call`,
 						};
                         break;
-					case DiscordModules.DiscordConstants.ChannelTypes.GUILD_VOICE:
+					case DiscordConstants.ChannelTypes.GUILD_VOICE:
 						//if(voice_state.guildId != target_channel.guild_id) return;
 						activity = {
 							state: `${VoiceStateStore.getVoiceUserCount(
@@ -243,17 +253,7 @@ module.exports = (Plugin, Library) => {
 						Logger.info(`default: ${target_channel?.type}`);
 						break;
 				}
-
                 RPC.updateActivity(activity);
-            };
-        }
-
-        voiceStateUpdateHandler(target_channel) {
-            return function (e) {
-                const [voice_state] = e.voiceStates;
-                //!= to coerce string/number if necessary
-                
-                if(voice_state.channelId != target_channel.id) return;
             };
         }
     };
