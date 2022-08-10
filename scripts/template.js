@@ -4,6 +4,7 @@
  * @authorLink {{AUTHOR_LINK}}
  * @source {{SOURCE}}
  * @updateUrl {{UPDATE_URL}}
+ * @invite {{INVITE_CODE}}
  */
 {{INSTALL_SCRIPT}}
 
