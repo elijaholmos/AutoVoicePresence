@@ -1,6 +1,5 @@
 {
 	"name": "betterdiscordaddons",
-	"version": "1.1.0",
 	"private": true,
 	"repository": {
 		"type": "git",
@@ -20,6 +19,7 @@
 		"copyToBD": true,
 		"addInstallScript": true,
 		"authorLink": "https://github.com/elijaholmos",
-		"github": "https://github.com/elijaholmos/BetterDiscordAddons"
+		"github": "https://github.com/elijaholmos/BetterDiscordAddons",
+		"inviteCode": "2YAzK3Rpfj"
 	}
 }
