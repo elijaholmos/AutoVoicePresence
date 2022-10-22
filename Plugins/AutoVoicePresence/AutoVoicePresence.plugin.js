@@ -1,6 +1,6 @@
 /**
  * @name AutoVoicePresence
- * @version 1.2.1
+ * @version 1.2.2
  * @authorLink https://github.com/elijaholmos
  * @source https://raw.githubusercontent.com/elijaholmos/BetterDiscordAddons/master/Plugins/AutoVoicePresence/AutoVoicePresence.plugin.js
  * @updateUrl https://raw.githubusercontent.com/elijaholmos/BetterDiscordAddons/master/Plugins/AutoVoicePresence/AutoVoicePresence.plugin.js
@@ -32,7 +32,7 @@
 
 
 module.exports = (() => {
-    const config = {info:{name:"AutoVoicePresence",authors:[{name:"Ollog10",discord_id:"139120967208271872",github_username:"elijaholmos"}],version:"1.2.1",description:"Automatically updates your rich presence when your voice activity changes",github_raw:"https://raw.githubusercontent.com/elijaholmos/BetterDiscordAddons/master/Plugins/AutoVoicePresence/AutoVoicePresence.plugin.js"},main:"index.js",changelog:[{title:"Bug Fixes",type:"fixed",items:["Now works with BetterDiscord v1.8.2"]}]};
+    const config = {info:{name:"AutoVoicePresence",authors:[{name:"Ollog10",discord_id:"139120967208271872",github_username:"elijaholmos"}],version:"1.2.2",description:"Automatically updates your rich presence when your voice activity changes",github_raw:"https://raw.githubusercontent.com/elijaholmos/BetterDiscordAddons/master/Plugins/AutoVoicePresence/AutoVoicePresence.plugin.js"},main:"index.js",changelog:[{title:"Bug Fixes",type:"fixed",items:["Fixed plugin build error","Now works with BetterDiscord v1.8.2"]}]};
 
     return !global.ZeresPluginLibrary ? class {
         constructor() {this._config = config;}
@@ -360,12 +360,6 @@ module.exports = (() => {
 							state: `${speakers} speakers, ${audience} in the audience`,
 						};
 						break;
-					case DiscordConstants.ChannelTypes.GUILD_STAGE_VOICE:
-						const { speakers, audience } = self.getStageAttendees(target_channel);
-						activity = {
-							state: `${speakers} speakers, ${audience} in the audience`,
-						};
-                        break;
 					default:
 						Logger.info(`default: ${target_channel?.type}`);
 						break;

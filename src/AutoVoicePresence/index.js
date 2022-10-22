@@ -285,12 +285,6 @@ module.exports = (Plugin, Library) => {
 							state: `${speakers} speakers, ${audience} in the audience`,
 						};
 						break;
-					case DiscordConstants.ChannelTypes.GUILD_STAGE_VOICE:
-						const { speakers, audience } = self.getStageAttendees(target_channel);
-						activity = {
-							state: `${speakers} speakers, ${audience} in the audience`,
-						};
-                        break;
 					default:
 						Logger.info(`default: ${target_channel?.type}`);
 						break;
