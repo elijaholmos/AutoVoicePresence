@@ -8,16 +8,16 @@
 				"github_username": "elijaholmos"
 			}
 		],
-		"version": "1.2.0",
+		"version": "1.2.1",
 		"description": "Automatically updates your rich presence when your voice activity changes",
 		"github_raw": "https://raw.githubusercontent.com/elijaholmos/BetterDiscordAddons/master/Plugins/AutoVoicePresence/AutoVoicePresence.plugin.js"
 	},
 	"main": "index.js",
 	"changelog": [
 		{
-			"title": "New Features",
-			"type": "added",
-			"items": ["Rich presence for stage channels\n\t- Displays the topic and the number of speakers/audience"]
+			"title": "Bug Fixes",
+			"type": "fixed",
+			"items": ["Now works with BetterDiscord v1.8.2"]
 		}
 	]
 }

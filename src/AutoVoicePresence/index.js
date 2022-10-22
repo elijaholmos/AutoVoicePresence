@@ -5,27 +5,39 @@ module.exports = (Plugin, Library) => {
 			UserStore,
 			Dispatcher,
 			ChannelStore,
-			DiscordConstants,
+			//DiscordConstants,
 			ImageResolver,
 			GuildStore,
 		},
 		WebpackModules,
 		Logger,
 	} = Library;
+	const { Webpack } = window.BdApi;
+	const DiscordConstants = {
+		GuildFeatures: Webpack.getModule(Webpack.Filters.byProps('DISCOVERABLE'), { searchExports: true }),
+		ChannelTypes: Webpack.getModule(Webpack.Filters.byProps('GUILD_TEXT'), { searchExports: true }),
+	};
 
 	const constants = require('constants.js');
 
-	const { SET_ACTIVITY } = WebpackModules.getByProps('SET_ACTIVITY');
+	const {
+		commands: { SET_ACTIVITY },
+	} = WebpackModules.getByProps('commands');
 	const VoiceStateStore = WebpackModules.getByProps('getVoiceStatesForChannel');
 
-	VoiceStateStore.__proto__.getVoiceUserCount = function (channel_id = SelectedChannelStore.getVoiceChannelId()) {
-		return Object.keys(this.getVoiceStatesForChannel(channel_id)).length;
+	// custom VoiceStateStore convenience methods
+	VoiceStateStore.__proto__.getVoiceUserCount = function (
+		channel = ChannelStore.getChannel(SelectedChannelStore.getVoiceChannelId())
+	) {
+		return Object.keys(this.getVoiceStatesForChannel(channel)).length;
 	};
-	VoiceStateStore.__proto__.getVoiceUsers = function (channel_id = SelectedChannelStore.getVoiceChannelId()) {
-		return Object.keys(this.getVoiceStatesForChannel(channel_id)).map(UserStore.getUser);
+	VoiceStateStore.__proto__.getVoiceUsers = function (
+		channel = ChannelStore.getChannel(SelectedChannelStore.getVoiceChannelId())
+	) {
+		return Object.keys(this.getVoiceStatesForChannel(channel)).map(UserStore.getUser);
 	};
 
-    // Custom dispatch subscriber for efficient memory management
+	// Custom dispatch subscriber for efficient memory management
 	Dispatcher.__proto__._subscriptionMap = new Map();
 	Dispatcher.__proto__.$subscribe = function (event, method) {
 		const id = Date.now();
@@ -47,17 +59,21 @@ module.exports = (Plugin, Library) => {
 		});
 	};
 
-	const AssetResolver = WebpackModules.getByProps('getAssetIds');
+	const AssetResolver = WebpackModules.getByIndex(137861);
 	//need to override the method because some bug occurs where it resends the external asset id as a URL, causing null to be returned
 	//catch rejected promises?
-	!AssetResolver?._getAssetIds && (AssetResolver._getAssetIds = AssetResolver.getAssetIds); //only store original if it hasn't yet been overridden
-	AssetResolver.getAssetIds = async function (app_id, urls, n) {
-		return Promise.all(
-			urls.map(async (url) =>
-				url?.startsWith('mp:external/') ? url : (await AssetResolver._getAssetIds(app_id, [url], n))[0]
-			)
-		);
-	};
+	!AssetResolver?._getAssetIds && (AssetResolver._getAssetIds = AssetResolver.GR); //only store original if it hasn't yet been overridden
+	Object.defineProperty(AssetResolver, 'GR', {
+		get() {
+			return async function (app_id, urls, n) {
+				return Promise.all(
+					urls.map(async (url) =>
+						url?.startsWith('mp:external/') ? url : (await AssetResolver._getAssetIds(app_id, [url], n))[0]
+					)
+				);
+			};
+		},
+	});
 
 	const resolveURI = function (uri) {
 		return uri.startsWith('/') ? `${location.protocol}${window.GLOBAL_ENV.ASSET_ENDPOINT}${uri}` : uri;
@@ -156,7 +172,9 @@ module.exports = (Plugin, Library) => {
 					activity = {
 						timestamps: { start: Date.now() },
 						details: name,
-						state: `${VoiceStateStore.getVoiceUserCount()} of ${recipients.length + 1} members in call`,
+						state: `${VoiceStateStore.getVoiceUserCount(channel)} of ${
+							recipients.length + 1
+						} members in call`,
 						assets: {
 							//default image color doesn't match and it's an incredible pain to figure out why
 							large_image: !!icon
@@ -178,7 +196,7 @@ module.exports = (Plugin, Library) => {
 					activity = {
 						timestamps: { start: Date.now() },
 						details: channel.name,
-						state: `${VoiceStateStore.getVoiceUserCount()} total users`,
+						state: `${VoiceStateStore.getVoiceUserCount(channel)} total users`,
 						assets: {
 							large_image: guild.getIconURL(null, true),
 							large_text: guild.name,
@@ -204,8 +222,8 @@ module.exports = (Plugin, Library) => {
 							large_text: guild.name,
 						},
 					};
-                    //create subscription
-                    this.subscriptions.set(
+					//create subscription
+					this.subscriptions.set(
 						'detectUserCountChange',
 						Dispatcher.$subscribe('VOICE_STATE_UPDATES', this.detectUserCountChange(channel))
 					);
@@ -218,8 +236,8 @@ module.exports = (Plugin, Library) => {
 			RPC.setActivity(activity);
 		}
 
-		getStageAttendees({ id }) {
-			return Object.values(VoiceStateStore.getVoiceStatesForChannel(id)).reduce(
+		getStageAttendees(channel) {
+			return Object.values(VoiceStateStore.getVoiceStatesForChannel(channel)).reduce(
 				({ audience, speakers }, { suppress, requestToSpeakTimestamp }) => {
 					//see https://discord.com/developers/docs/resources/stage-instance#definitions
 					suppress === false && !requestToSpeakTimestamp ? speakers++ : audience++;
@@ -250,7 +268,7 @@ module.exports = (Plugin, Library) => {
 					//voice_state.channelId will be null if a user left channel
 					case DiscordConstants.ChannelTypes.GROUP_DM:
 						activity = {
-							state: `${VoiceStateStore.getVoiceUserCount(target_channel.id)} of ${
+							state: `${VoiceStateStore.getVoiceUserCount(target_channel)} of ${
 								target_channel.rawRecipients.length + 1
 							} members in call`,
 						};
@@ -258,7 +276,13 @@ module.exports = (Plugin, Library) => {
 					case DiscordConstants.ChannelTypes.GUILD_VOICE:
 						//if(voice_state.guildId != target_channel.guild_id) return;
 						activity = {
-							state: `${VoiceStateStore.getVoiceUserCount(target_channel.id)} total users`,
+							state: `${VoiceStateStore.getVoiceUserCount(target_channel)} total users`,
+						};
+						break;
+					case DiscordConstants.ChannelTypes.GUILD_STAGE_VOICE:
+						const { speakers, audience } = self.getStageAttendees(target_channel);
+						activity = {
+							state: `${speakers} speakers, ${audience} in the audience`,
 						};
 						break;
 					case DiscordConstants.ChannelTypes.GUILD_STAGE_VOICE:
