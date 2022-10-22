@@ -59,17 +59,21 @@ module.exports = (Plugin, Library) => {
 		});
 	};
 
-	const AssetResolver = WebpackModules.getByProps('getAssetIds');
+	const AssetResolver = WebpackModules.getByIndex(137861);
 	//need to override the method because some bug occurs where it resends the external asset id as a URL, causing null to be returned
 	//catch rejected promises?
-	!AssetResolver?._getAssetIds && (AssetResolver._getAssetIds = AssetResolver.getAssetIds); //only store original if it hasn't yet been overridden
-	AssetResolver.getAssetIds = async function (app_id, urls, n) {
-		return Promise.all(
-			urls.map(async (url) =>
-				url?.startsWith('mp:external/') ? url : (await AssetResolver._getAssetIds(app_id, [url], n))[0]
-			)
-		);
-	};
+	!AssetResolver?._getAssetIds && (AssetResolver._getAssetIds = AssetResolver.GR); //only store original if it hasn't yet been overridden
+	Object.defineProperty(AssetResolver, 'GR', {
+		get() {
+			return async function (app_id, urls, n) {
+				return Promise.all(
+					urls.map(async (url) =>
+						url?.startsWith('mp:external/') ? url : (await AssetResolver._getAssetIds(app_id, [url], n))[0]
+					)
+				);
+			};
+		},
+	});
 
 	const resolveURI = function (uri) {
 		return uri.startsWith('/') ? `${location.protocol}${window.GLOBAL_ENV.ASSET_ENDPOINT}${uri}` : uri;
