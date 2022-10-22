@@ -129,7 +129,6 @@ module.exports = (Plugin, Library) => {
 		onStart() {
 			//do some check if user is currently in VC when starting plugin
 			RPC.clearActivity();
-			Logger.info('plugin started');
 			Dispatcher.$subscribe('VOICE_CHANNEL_SELECT', this.voiceChannelSelectHandler.bind(this));
 		}
 
