@@ -5,27 +5,39 @@ module.exports = (Plugin, Library) => {
 			UserStore,
 			Dispatcher,
 			ChannelStore,
-			DiscordConstants,
+			//DiscordConstants,
 			ImageResolver,
 			GuildStore,
 		},
 		WebpackModules,
 		Logger,
 	} = Library;
+	const { Webpack } = window.BdApi;
+	const DiscordConstants = {
+		GuildFeatures: Webpack.getModule(Webpack.Filters.byProps('DISCOVERABLE'), { searchExports: true }),
+		ChannelTypes: Webpack.getModule(Webpack.Filters.byProps('GUILD_TEXT'), { searchExports: true }),
+	};
 
 	const constants = require('constants.js');
 
-	const { SET_ACTIVITY } = WebpackModules.getByProps('SET_ACTIVITY');
+	const {
+		commands: { SET_ACTIVITY },
+	} = WebpackModules.getByProps('commands');
 	const VoiceStateStore = WebpackModules.getByProps('getVoiceStatesForChannel');
 
-	VoiceStateStore.__proto__.getVoiceUserCount = function (channel_id = SelectedChannelStore.getVoiceChannelId()) {
-		return Object.keys(this.getVoiceStatesForChannel(channel_id)).length;
+	// custom VoiceStateStore convenience methods
+	VoiceStateStore.__proto__.getVoiceUserCount = function (
+		channel = ChannelStore.getChannel(SelectedChannelStore.getVoiceChannelId())
+	) {
+		return Object.keys(this.getVoiceStatesForChannel(channel)).length;
 	};
-	VoiceStateStore.__proto__.getVoiceUsers = function (channel_id = SelectedChannelStore.getVoiceChannelId()) {
-		return Object.keys(this.getVoiceStatesForChannel(channel_id)).map(UserStore.getUser);
+	VoiceStateStore.__proto__.getVoiceUsers = function (
+		channel = ChannelStore.getChannel(SelectedChannelStore.getVoiceChannelId())
+	) {
+		return Object.keys(this.getVoiceStatesForChannel(channel)).map(UserStore.getUser);
 	};
 
-    // Custom dispatch subscriber for efficient memory management
+	// Custom dispatch subscriber for efficient memory management
 	Dispatcher.__proto__._subscriptionMap = new Map();
 	Dispatcher.__proto__.$subscribe = function (event, method) {
 		const id = Date.now();
@@ -113,6 +125,7 @@ module.exports = (Plugin, Library) => {
 		onStart() {
 			//do some check if user is currently in VC when starting plugin
 			RPC.clearActivity();
+			Logger.info('plugin started');
 			Dispatcher.$subscribe('VOICE_CHANNEL_SELECT', this.voiceChannelSelectHandler.bind(this));
 		}
 
@@ -156,7 +169,9 @@ module.exports = (Plugin, Library) => {
 					activity = {
 						timestamps: { start: Date.now() },
 						details: name,
-						state: `${VoiceStateStore.getVoiceUserCount()} of ${recipients.length + 1} members in call`,
+						state: `${VoiceStateStore.getVoiceUserCount(channel)} of ${
+							recipients.length + 1
+						} members in call`,
 						assets: {
 							//default image color doesn't match and it's an incredible pain to figure out why
 							large_image: !!icon
@@ -178,7 +193,7 @@ module.exports = (Plugin, Library) => {
 					activity = {
 						timestamps: { start: Date.now() },
 						details: channel.name,
-						state: `${VoiceStateStore.getVoiceUserCount()} total users`,
+						state: `${VoiceStateStore.getVoiceUserCount(channel)} total users`,
 						assets: {
 							large_image: guild.getIconURL(null, true),
 							large_text: guild.name,
@@ -204,8 +219,8 @@ module.exports = (Plugin, Library) => {
 							large_text: guild.name,
 						},
 					};
-                    //create subscription
-                    this.subscriptions.set(
+					//create subscription
+					this.subscriptions.set(
 						'detectUserCountChange',
 						Dispatcher.$subscribe('VOICE_STATE_UPDATES', this.detectUserCountChange(channel))
 					);
@@ -218,8 +233,8 @@ module.exports = (Plugin, Library) => {
 			RPC.setActivity(activity);
 		}
 
-		getStageAttendees({ id }) {
-			return Object.values(VoiceStateStore.getVoiceStatesForChannel(id)).reduce(
+		getStageAttendees(channel) {
+			return Object.values(VoiceStateStore.getVoiceStatesForChannel(channel)).reduce(
 				({ audience, speakers }, { suppress, requestToSpeakTimestamp }) => {
 					//see https://discord.com/developers/docs/resources/stage-instance#definitions
 					suppress === false && !requestToSpeakTimestamp ? speakers++ : audience++;
@@ -250,7 +265,7 @@ module.exports = (Plugin, Library) => {
 					//voice_state.channelId will be null if a user left channel
 					case DiscordConstants.ChannelTypes.GROUP_DM:
 						activity = {
-							state: `${VoiceStateStore.getVoiceUserCount(target_channel.id)} of ${
+							state: `${VoiceStateStore.getVoiceUserCount(target_channel)} of ${
 								target_channel.rawRecipients.length + 1
 							} members in call`,
 						};
@@ -258,7 +273,7 @@ module.exports = (Plugin, Library) => {
 					case DiscordConstants.ChannelTypes.GUILD_VOICE:
 						//if(voice_state.guildId != target_channel.guild_id) return;
 						activity = {
-							state: `${VoiceStateStore.getVoiceUserCount(target_channel.id)} total users`,
+							state: `${VoiceStateStore.getVoiceUserCount(target_channel)} total users`,
 						};
 						break;
 					case DiscordConstants.ChannelTypes.GUILD_STAGE_VOICE:
@@ -266,7 +281,7 @@ module.exports = (Plugin, Library) => {
 						activity = {
 							state: `${speakers} speakers, ${audience} in the audience`,
 						};
-                        break;
+						break;
 					default:
 						Logger.info(`default: ${target_channel?.type}`);
 						break;
