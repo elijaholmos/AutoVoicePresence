@@ -137,6 +137,10 @@ module.exports = (Plugin, Library) => {
 			Dispatcher.$unsubscribeAll('VOICE_CHANNEL_SELECT');
 		}
 
+		getSettingsPanel() {
+			return this.buildSettingsPanel().getElement();
+		}
+
 		voiceChannelSelectHandler({ currentVoiceChannelId = null } = {}) {
 			Logger.info('Voice Channel Selected');
 			const channel = ChannelStore.getChannel(SelectedChannelStore.getVoiceChannelId());
@@ -156,6 +160,7 @@ module.exports = (Plugin, Library) => {
 			let activity = {};
 			switch (channel?.type) {
 				case DiscordConstants.ChannelTypes.DM:
+					if (!this.settings.dm.enabled) return;
 					const user = UserStore.getUser(channel.recipients[0]);
 					activity = {
 						timestamps: { start: Date.now() },
@@ -168,6 +173,7 @@ module.exports = (Plugin, Library) => {
 					};
 					break;
 				case DiscordConstants.ChannelTypes.GROUP_DM:
+					if (!this.settings.group_dm.enabled) return;
 					const { id, name, recipients, icon } = channel;
 					activity = {
 						timestamps: { start: Date.now() },
@@ -192,6 +198,7 @@ module.exports = (Plugin, Library) => {
 					);
 					break;
 				case DiscordConstants.ChannelTypes.GUILD_VOICE: {
+					if (!this.settings.guild_voice.enabled) return;
 					const guild = GuildStore.getGuild(channel.guild_id);
 					activity = {
 						timestamps: { start: Date.now() },
@@ -210,6 +217,7 @@ module.exports = (Plugin, Library) => {
 					break;
 				}
 				case DiscordConstants.ChannelTypes.GUILD_STAGE_VOICE: {
+					if (!this.settings.guild_stage_voice.enabled) return;
 					const guild = GuildStore.getGuild(channel.guild_id);
 					const { speakers, audience } = this.getStageAttendees(channel);
 					activity = {
