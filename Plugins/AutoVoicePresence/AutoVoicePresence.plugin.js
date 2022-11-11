@@ -1,6 +1,6 @@
 /**
  * @name AutoVoicePresence
- * @version 1.2.2
+ * @version 1.3.0
  * @authorLink https://github.com/elijaholmos
  * @source https://raw.githubusercontent.com/elijaholmos/BetterDiscordAddons/master/Plugins/AutoVoicePresence/AutoVoicePresence.plugin.js
  * @updateUrl https://raw.githubusercontent.com/elijaholmos/BetterDiscordAddons/master/Plugins/AutoVoicePresence/AutoVoicePresence.plugin.js
@@ -32,7 +32,7 @@
 
 
 module.exports = (() => {
-    const config = {info:{name:"AutoVoicePresence",authors:[{name:"Ollog10",discord_id:"139120967208271872",github_username:"elijaholmos"}],version:"1.2.2",description:"Automatically updates your rich presence when your voice activity changes",github_raw:"https://raw.githubusercontent.com/elijaholmos/BetterDiscordAddons/master/Plugins/AutoVoicePresence/AutoVoicePresence.plugin.js"},main:"index.js",changelog:[{title:"Bug Fixes",type:"fixed",items:["Fixed plugin build error","Now works with BetterDiscord v1.8.2"]}]};
+    const config = {info:{name:"AutoVoicePresence",authors:[{name:"Ollog10",discord_id:"139120967208271872",github_username:"elijaholmos"}],version:"1.3.0",description:"Automatically updates your rich presence when your voice activity changes",github_raw:"https://raw.githubusercontent.com/elijaholmos/BetterDiscordAddons/master/Plugins/AutoVoicePresence/AutoVoicePresence.plugin.js"},main:"index.js",changelog:[{title:"New Features",type:"added",items:["Toggle settings to enable/disable different parts of the plugin"]}],defaultConfig:[{type:"category",id:"dm",name:"DM Calls",collapsible:true,shown:true,settings:[{type:"switch",id:"enabled",name:"Enable",note:"Show rich presence for DM calls",value:true}]},{type:"category",id:"group_dm",name:"Group Calls",collapsible:true,shown:true,settings:[{type:"switch",id:"enabled",name:"Enable",note:"Show rich presence for group calls",value:true}]},{type:"category",id:"guild_voice",name:"Voice Channels",collapsible:true,shown:true,settings:[{type:"switch",id:"enabled",name:"Enable",note:"Show rich presence for voice channels",value:true}]},{type:"category",id:"guild_stage_voice",name:"Stage Channels",collapsible:true,shown:true,settings:[{type:"switch",id:"enabled",name:"Enable",note:"Show rich presence for stage channels",value:true}]}]};
 
     return !global.ZeresPluginLibrary ? class {
         constructor() {this._config = config;}
@@ -212,6 +212,10 @@ module.exports = (() => {
 			Dispatcher.$unsubscribeAll('VOICE_CHANNEL_SELECT');
 		}
 
+		getSettingsPanel() {
+			return this.buildSettingsPanel().getElement();
+		}
+
 		voiceChannelSelectHandler({ currentVoiceChannelId = null } = {}) {
 			Logger.info('Voice Channel Selected');
 			const channel = ChannelStore.getChannel(SelectedChannelStore.getVoiceChannelId());
@@ -231,6 +235,7 @@ module.exports = (() => {
 			let activity = {};
 			switch (channel?.type) {
 				case DiscordConstants.ChannelTypes.DM:
+					if (!this.settings.dm.enabled) return;
 					const user = UserStore.getUser(channel.recipients[0]);
 					activity = {
 						timestamps: { start: Date.now() },
@@ -243,6 +248,7 @@ module.exports = (() => {
 					};
 					break;
 				case DiscordConstants.ChannelTypes.GROUP_DM:
+					if (!this.settings.group_dm.enabled) return;
 					const { id, name, recipients, icon } = channel;
 					activity = {
 						timestamps: { start: Date.now() },
@@ -267,6 +273,7 @@ module.exports = (() => {
 					);
 					break;
 				case DiscordConstants.ChannelTypes.GUILD_VOICE: {
+					if (!this.settings.guild_voice.enabled) return;
 					const guild = GuildStore.getGuild(channel.guild_id);
 					activity = {
 						timestamps: { start: Date.now() },
@@ -285,6 +292,7 @@ module.exports = (() => {
 					break;
 				}
 				case DiscordConstants.ChannelTypes.GUILD_STAGE_VOICE: {
+					if (!this.settings.guild_stage_voice.enabled) return;
 					const guild = GuildStore.getGuild(channel.guild_id);
 					const { speakers, audience } = this.getStageAttendees(channel);
 					activity = {
